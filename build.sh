@@ -185,9 +185,20 @@ apply_config() {
 
     cat "$BASE_PATH/deconfig/compile_base.config" >> "$BASE_PATH/../$BUILD_DIR/.config"
 
-    cat "$BASE_PATH/deconfig/docker_deps.config" >> "$BASE_PATH/../$BUILD_DIR/.config"
-
     cat "$BASE_PATH/deconfig/proxy.config" >> "$BASE_PATH/../$BUILD_DIR/.config"
+
+    # 删除所有 docker 相关配置（防止被继承/污染）
+sed -i '/CONFIG_PACKAGE_.*docker/d' "$BASE_PATH/../$BUILD_DIR/.config"
+sed -i '/CONFIG_PACKAGE_.*containerd/d' "$BASE_PATH/../$BUILD_DIR/.config"
+sed -i '/CONFIG_PACKAGE_.*runc/d' "$BASE_PATH/../$BUILD_DIR/.config"
+
+cat <<EOF >> "$BASE_PATH/../$BUILD_DIR/.config"
+CONFIG_PACKAGE_dockerd=n
+CONFIG_PACKAGE_docker=n
+CONFIG_PACKAGE_containerd=n
+CONFIG_PACKAGE_runc=n
+CONFIG_PACKAGE_luci-app-dockerman=n
+EOF
 }
 
 REPO_URL=$(read_ini_by_key "REPO_URL")
