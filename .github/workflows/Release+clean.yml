@@ -1,0 +1,113 @@
+name: Release+clean
+run-name: Release+clean - ${{ inputs.model }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        required: true
+        description: Device Model
+        type: choice
+        default: jdcloud_ipq60xx_immwrt
+        options:
+          - aliyun_ap8220_immwrt
+          - aliyun_ap8220_libwrt
+          - cmcc_rax3000m_immwrt
+          - gemtek_w1701k_immwrt
+          - jdcloud_ax6000_immwrt
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_libwrt
+          - link_nn6000v2_immwrt
+          - linksys_mx4x00_immwrt
+          - qihoo_360v6_immwrt
+          - redmi_ax5_immwrt
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt21
+          - zn_m2_immwrt
+          - zn_m2_libwrt
+          - x64_immwrt
+
+#CI权限
+permissions: write-all
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Build System Setup
+        run: |
+          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          sudo -E apt -yqq install dos2unix
+          sudo -E apt -yqq install libfuse-dev
+          sudo -E apt -yqq autoremove --purge
+          sudo -E apt -yqq autoclean
+          sudo -E apt -yqq clean
+          sudo -E systemctl daemon-reload
+
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+
+      - name: Set Build Date and Timezone
+        run: |
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+
+
+
+      - name: Cleanup Old Versions
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=========================================="
+          echo "开始清理旧版本..."
+          echo "=========================================="
+          
+          # ========== 1. 清理 Releases ==========
+          echo "所有 Releases 列表:"
+          gh release list --json tagName,createdAt --jq 'sort_by(.tagName) | reverse | .[] | {tagName: .tagName, createdAt: .createdAt}'
+          echo ""
+          
+          # 获取所有发布的Release,除的旧Release：保留最新4个，其余全部删除
+          RELEASES=$(gh release list --json tagName --jq 'sort_by(.tagName) | reverse | .[4:] | .[].tagName')
+          
+          if [ -z "$RELEASES" ]; then
+            echo "无需清理 Release"
+          else
+            echo "删除旧 Release:"
+            echo "$RELEASES" | while read -r tag; do
+              if [ -n "$tag" ]; then
+                echo "  删除：$tag"
+                gh release delete "$tag" --cleanup-tag --yes 2>/dev/null || true
+              fi
+            done
+          fi
+          
+          echo ""
+          echo "✓ 旧版本清理完成"
+          
+          # ========== 2. 清理旧的工作流运行记录 ==========
+          echo ""
+          echo "清理旧的工作流运行记录..."
+          # 显示所有工作流运行记录以供调试
+          echo "所有工作流运行记录:"
+          gh run list --workflow release.yml --json name,databaseId,createdAt --jq 'sort_by(.createdAt) | reverse | .[] | {name: .name, databaseId: .databaseId, createdAt: .createdAt}'
+          echo ""
+          
+          # 获取工作流运行记录，按创建时间排序，保留最新的4个，删除更早的
+          gh run list --workflow release.yml --json databaseId,createdAt --jq 'sort_by(.createdAt) | reverse | .[4:] | .[].databaseId' | while read -r run_id; do
+            if [ -n "$run_id" ]; then
+              echo "  删除工作流运行记录：$run_id"
+              gh run delete "$run_id" 2>/dev/null || true
+            fi
+          done
+          
+          echo "✓ 工作流运行记录清理完成"
