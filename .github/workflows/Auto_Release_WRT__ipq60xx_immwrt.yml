@@ -6,7 +6,11 @@ on:
     # 每 3 天编译一次（UTC 时间，北京时间 = UTC+8）
     # UTC 20:00 = 北京时间 04:00
     - cron: '0 20 */3 * *'
-  
+  workflow_dispatch:
+    inputs:
+      model: 
+        jdcloud_ipq60xx_libwrt
+      
 
 #CI权限
 permissions: write-all
