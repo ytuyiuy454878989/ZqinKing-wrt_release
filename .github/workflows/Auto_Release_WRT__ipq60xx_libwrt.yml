@@ -1,16 +1,20 @@
-name: Auto_Release_WRT__ipq60xx_libwrt
-run-name: Auto_Release_WRT__ipq60xx_libwrt
+#CI项目
+name: Release WRT (ipq60xx_libwrt)
+run-name: Release - ipq60xx_libwrt
 
 on:
   schedule:
+    # 每 3 天编译一次（UTC 时间 20:00 ≈ 北京时间 04:00）
     - cron: '0 20 */3 * *'
-  workflow_dispatch:
+  workflow_dispatch:   # 允许手动触发，无需输入参数
 
+#CI权限
 permissions: write-all
 
+#CI环境变量
 env:
-  TARGET_MODEL: jdcloud_ipq60xx_libwrt
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TARGET_MODEL: jdcloud_ipq60xx_libwrt   # 固定目标机型
 
 jobs:
   build:
@@ -42,9 +46,9 @@ jobs:
           remove_haskell: true
           remove_tool_cache: true
           remove_swap: true
-          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* llvm mysql* dotnet-sdk-"
+          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
           remove_packages_one_command: true
-          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
+          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
           rm_cmd: "rm"
           rmz_version: "3.1.1"
           testing: false
@@ -72,7 +76,9 @@ jobs:
 
       - name: Pre Clone
         run: |
-          chmod +x ./wrt_core/pre_clone_action.sh
+          for script in $(find . -name "*.sh"); do
+            chmod +x "$script"
+          done
           ./wrt_core/pre_clone_action.sh ${{ env.TARGET_MODEL }}
 
       - name: Replace Xray-core Git Source Mirror
@@ -111,8 +117,8 @@ jobs:
       - name: Refresh the cache
         run: |
           if [ -d "./action_build/staging_dir" ]; then
-            find "./action_build/staging_dir" -type d -name "stamp" -not -path "target" | while read -r dir; do
-              find "$dir" -type f -exec touch {} +
+            find "./action_build/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
+                find "$dir" -type f -exec touch {} +
             done
           fi
 
@@ -125,7 +131,7 @@ jobs:
           echo "Uptime: $(uptime -p)"
           echo "=================================================="
           echo "[CPU]"
-          lscpu | grep -E "Model name|Architecture|CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|CPU max MHz"
+          lscpu | grep -E "Model name|Architecture|CPU\\(s\\)|Thread\\(s\\) per core|Core\\(s\\) per socket|CPU max MHz"
           echo "=================================================="
           echo "[Memory]"
           free -h
@@ -168,7 +174,7 @@ jobs:
           echo "Uptime: $(uptime -p)"
           echo "===================================================="
           echo "[CPU]"
-          lscpu | grep -E "Model name|Architecture|CPUs|Threads per core|Cores per socket|CPU max MHz"
+          lscpu | grep -E "Model name|Architecture|CPU\\(s\\)|Thread\\(s\\) per core|Core\\(s\\) per socket|CPU max MHz"
           echo "===================================================="
           echo "[Memory]"
           free -h
@@ -184,6 +190,7 @@ jobs:
           echo "Firmware file count: $(ls -1 ./firmware 2>/dev/null | wc -l)"
           echo "===================================================="
 
+      # 该步骤仅用于 n1 机型，固定目标非 n1，故禁用
       - name: Package OpenWrt Firmware(打包固件)
         if: false
         uses: unifreq/openwrt_packit@8007d3efd49bb42aa20c5755a50af21dc7a438e1
@@ -201,7 +208,6 @@ jobs:
           echo "WIFI密码: 12345678" >> release_body.txt
           echo "LAN地址: 192.168.1.1" >> release_body.txt
           echo "插件：" >> release_body.txt
-          # 安全处理通配符，避免无匹配文件导致失败
           find ./firmware -name "*.manifest" -exec grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" {} \; 2>/dev/null | awk -F":" '{print $NF}' >> release_body.txt || true
 
       - name: Release Firmware(发布固件)
