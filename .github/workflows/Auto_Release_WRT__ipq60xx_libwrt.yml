@@ -1,17 +1,48 @@
 #CI项目
-name: Release WRT (ipq60xx_libwrt)
-run-name: Release - ipq60xx_libwrt
-
+name: Release WRT
+run-name: Release - ${{ inputs.model }}
 on:
   schedule:
+    # 每 3 天编译一次（UTC 时间，北京时间 = UTC+8）
+    # UTC 20:00 = 北京时间 04:00
     - cron: '0 20 */3 * *'
+  
   workflow_dispatch:
+    inputs:
+      model:
+        required: true
+        description: Device Model
+        type: choice
+        default: jdcloud_ipq60xx_libwrt
+        options:
+          - aliyun_ap8220_immwrt
+          - aliyun_ap8220_libwrt
+          - cmcc_rax3000m_immwrt
+          - gemtek_w1701k_immwrt
+          - jdcloud_ax6000_immwrt
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_libwrt
+          - sy_y6010_immwrt
+          - sy_y6010_libwrt
+          - link_nn6000v2_immwrt
+          - link_nn6000v2_libwrt
+          - linksys_mx4x00_immwrt
+          - n1_immwrt
+          - qihoo_360v6_immwrt
+          - redmi_ax5_immwrt
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt21
+          - zn_m2_immwrt
+          - zn_m2_libwrt
+          - x64_immwrt
 
+#CI权限
 permissions: write-all
 
+#CI任务
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TARGET_MODEL: jdcloud_ipq60xx_libwrt
 
 jobs:
   build:
@@ -21,6 +52,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # =========【修复1】Checkout 移动到最前置，优先拉取源码=========
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+
       - name: Check Server Performance(检查服务器性能)
         run: |
           echo "警告⚠"
@@ -35,6 +70,7 @@ jobs:
           echo "--------------------------硬盘信息--------------------------"
           echo "硬盘数量：$(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
+      # 前置磁盘扩容清理
       - name: Free Disk Space(清理磁盘空间)
         uses: endersonmenezes/free-disk-space@v3
         with:
@@ -50,10 +86,11 @@ jobs:
           rmz_version: "3.1.1"
           testing: false
 
-      # 【修复】使用管道方式执行远程脚本，避免 sudo 无法处理进程替换
+      # 完整编译依赖补充
       - name: Build System Setup(安装依赖环境)
         run: |
-          curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh | sudo bash
+          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          # 补充xray-core编译必备依赖
           sudo -E apt -yqq install dos2unix libfuse-dev golang-go ca-certificates
           sudo -E update-ca-certificates
           sudo -E apt -yqq autoremove --purge
@@ -61,15 +98,20 @@ jobs:
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
 
-      - name: Checkout
-        uses: actions/checkout@v7.0.0
-
       - name: Set Build Date and Timezone
         run: |
           sudo -E timedatectl set-timezone "Asia/Shanghai"
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./wrt_core/compilecfg/${{ env.TARGET_MODEL }}.ini")
+          INI_FILE="./wrt_core/compilecfg/${{ inputs.model }}.ini"
+          # =========【修复2】增加ini文件校验，方便排错=========
+          if [ ! -f "${INI_FILE}" ];then
+            echo "ERROR: 配置文件不存在 -> ${INI_FILE}"
+            echo "目录列表："
+            ls -la ./wrt_core/compilecfg/ || echo "compilecfg目录不存在"
+            exit 1
+          fi
+          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "${INI_FILE}")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
       - name: Pre Clone
@@ -77,12 +119,14 @@ jobs:
           for script in $(find . -name "*.sh"); do
             chmod +x "$script"
           done
-          ./wrt_core/pre_clone_action.sh ${{ env.TARGET_MODEL }}
+          ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
 
+      # 替换Xray源码地址为ghproxy加速
       - name: Replace Xray-core Git Source Mirror
         run: |
           find ./ -path "*package/xray-core/Makefile" -type f -exec sed -i 's|https://github.com/XTLS/Xray-core.git|https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core.git|g' {} \; || true
 
+      # 构建前清空旧编译缓存
       - name: Clean Old Build Cache Before Compile
         run: |
           rm -rf ./action_build/build_dir ./action_build/dl ./action_build/tmp ./action_build/staging_dir || true
@@ -105,8 +149,8 @@ jobs:
         if: env.WRT_TEST != 'true'
         uses: actions/cache@main
         with:
-          key: ${{ env.WRT_CONFIG }}-${{ env.WRT_INFO }}-${{ env.WRT_HASH }}
-          restore-keys: ${{ env.WRT_CONFIG }}-${{ env.WRT_INFO }}
+          key: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_HASH}}
+          restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
           path: |
             ./wrt/.ccache
             ./wrt/staging_dir/host*
@@ -124,7 +168,7 @@ jobs:
         run: |
           echo "=============== Pre-build Snapshot ==============="
           echo "Time: $(date '+%F %T %Z')"
-          echo "Runner: ${{ runner.name }} (${{ runner.os }}/${{ runner.arch }})"
+          echo "Runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
           echo "Kernel: $(uname -r)"
           echo "Uptime: $(uptime -p)"
           echo "=================================================="
@@ -140,20 +184,19 @@ jobs:
           df -hi
           echo "=================================================="
           echo "[Workspace]"
-          echo "GITHUB_WORKSPACE=${{ github.workspace }}"
-          du -sh "${{ github.workspace }}" 2>/dev/null || true
+          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+          du -sh "${GITHUB_WORKSPACE}" 2>/dev/null || true
           du -sh ./action_build/.ccache 2>/dev/null || true
           du -sh ./action_build/staging_dir 2>/dev/null || true
           du -sh ./firmware 2>/dev/null || true
           echo "=================================================="
 
       - name: Build Firmware(编译固件)
-        run: export BUILD_VERBOSE="V=sc" && ./build.sh ${{ env.TARGET_MODEL }}
+        run: export BUILD_VERBOSE="V=sc" && ./build.sh ${{ inputs.model }}
 
-      - name: Get Kernel Version
+      - name: Get Kernel Verion
         run: |
-          KVER=$(grep -oP "^kernel\." ./firmware/*.manifest 2>/dev/null | grep -oP "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}" | head -n1 || echo "unknown")
-          echo "KVER=$KVER" >> $GITHUB_ENV
+          echo "KVER=$(grep -oP "^kernel.*" ./firmware/*.manifest | grep -oP "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
       - name: Delete Old Cache
         run: |
@@ -167,7 +210,7 @@ jobs:
         run: |
           echo "=============== Post-build Snapshot ==============="
           echo "Time: $(date '+%F %T %Z')"
-          echo "Runner: ${{ runner.name }} (${{ runner.os }}/${{ runner.arch }})"
+          echo "Runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
           echo "Kernel: $(uname -r)"
           echo "Uptime: $(uptime -p)"
           echo "===================================================="
@@ -189,7 +232,7 @@ jobs:
           echo "===================================================="
 
       - name: Package OpenWrt Firmware(打包固件)
-        if: false
+        if: ${{ inputs.model == 'n1_immwrt' }}
         uses: unifreq/openwrt_packit@8007d3efd49bb42aa20c5755a50af21dc7a438e1
         env:
           OPENWRT_ARMVIRT: firmware/*.tar.gz
@@ -205,13 +248,13 @@ jobs:
           echo "WIFI密码: 12345678" >> release_body.txt
           echo "LAN地址: 192.168.1.1" >> release_body.txt
           echo "插件：" >> release_body.txt
-          find ./firmware -name "*.manifest" -exec grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" {} \; 2>/dev/null | awk -F":" '{print $NF}' >> release_body.txt || true
+          echo "$(grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" ./firmware/*.manifest | awk -F":" '{print $NF}')"  >> release_body.txt
 
       - name: Release Firmware(发布固件)
         uses: softprops/action-gh-release@v3.0.1
         with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ env.TARGET_MODEL }}
-          files: ./firmware/.
+          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
+          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
           body_path: ./release_body.txt
 
       - name: Post-clean Disk Space
