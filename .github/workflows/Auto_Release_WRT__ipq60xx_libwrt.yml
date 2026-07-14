@@ -4,17 +4,14 @@ run-name: Release - ipq60xx_libwrt
 
 on:
   schedule:
-    # 每 3 天编译一次（UTC 时间 20:00 ≈ 北京时间 04:00）
     - cron: '0 20 */3 * *'
-  workflow_dispatch:   # 允许手动触发，无需输入参数
+  workflow_dispatch:
 
-#CI权限
 permissions: write-all
 
-#CI环境变量
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TARGET_MODEL: jdcloud_ipq60xx_libwrt   # 固定目标机型
+  TARGET_MODEL: jdcloud_ipq60xx_libwrt
 
 jobs:
   build:
@@ -53,9 +50,10 @@ jobs:
           rmz_version: "3.1.1"
           testing: false
 
+      # 【修复】使用管道方式执行远程脚本，避免 sudo 无法处理进程替换
       - name: Build System Setup(安装依赖环境)
         run: |
-          sudo bash - <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)
+          curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh | sudo bash
           sudo -E apt -yqq install dos2unix libfuse-dev golang-go ca-certificates
           sudo -E update-ca-certificates
           sudo -E apt -yqq autoremove --purge
@@ -190,7 +188,6 @@ jobs:
           echo "Firmware file count: $(ls -1 ./firmware 2>/dev/null | wc -l)"
           echo "===================================================="
 
-      # 该步骤仅用于 n1 机型，固定目标非 n1，故禁用
       - name: Package OpenWrt Firmware(打包固件)
         if: false
         uses: unifreq/openwrt_packit@8007d3efd49bb42aa20c5755a50af21dc7a438e1
