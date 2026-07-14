@@ -1,23 +1,17 @@
-#CI项目
 name: Auto_Release_WRT__ipq60xx_libwrt
 run-name: Auto_Release_WRT__ipq60xx_libwrt
+
 on:
-  schedule:
-    # 每 3 天编译一次（UTC 时间，北京时间 = UTC+8）
-    # UTC 20:00 = 北京时间 04:00
-    - cron: '0 20 */3 * *'
-  workflow_dispatch:
+schedule:
+- cron: '0 20 */3 * *'
+workflow_dispatch:
 
-#CI权限
 permissions: write-all
-
-固定当前编译机型（修复 inputs 未定义报错）
 
 env:
 TARGET_MODEL: jdcloud_ipq60xx_libwrt
 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-#CI任务
 jobs:
 build:
 strategy:
@@ -40,8 +34,6 @@ echo -e "(sudo lshw -short -C memory | grep GiB) \n"
 echo "--------------------------硬盘信息--------------------------"
 echo "硬盘数量：(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
-前置磁盘扩容清理（移到最前，防止依赖安装时磁盘不足）
-
 • name: Free Disk Space(清理磁盘空间)
 uses: endersonmenezes/free-disk-space@v3
 with:
@@ -57,14 +49,9 @@ rm_cmd: "rm"
 rmz_version: "3.1.1"
 testing: false
 
-完整编译依赖补充：增加golang+证书修复xray编译
-
 ◦ name: Build System Setup(安装依赖环境)
 run: |
-sudo bash -c 'bash<(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-
-补充xray-core编译必备依赖
-
+sudo bash -<(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
 sudo -E apt -yqq install dos2unix libfuse-dev golang-go ca-certificates
 sudo -E update-ca-certificates
 sudo -E apt -yqq autoremove --purge
@@ -75,42 +62,26 @@ sudo -E systemctl daemon-reload
 ◦ name: Checkout
 uses: actions/checkout@v7.0.0
 
-【修复】固定机型读取INI，彻底解决INI NOT FOUND
-
 ◦ name: Set Build Date and Timezone
 run: |
 sudo -E timedatectl set-timezone "Asia/Shanghai"
 export BUILD_DATE=(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
-echo "BUILD_DATE=BUILD_DATE" >> $GITHUB_ENV
-
-固定读取当前机型ini
-
-export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print NF}' "./wrt_core/compilecfg/{{ env.TARGET_MODEL }}.ini")
+echo "BUILD_DATE=BUILD_DATE" >> GITHUB_ENV
+export BUILD_SRC=(awk -F"=" '/REPO_URL/ {print NF}' "./wrt_core/compilecfg/{{ env.TARGET_MODEL }}.ini")
 echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
-
-【修复】禁止全局遍历所有sh，只授权必要脚本，规避报错
 
 ◦ name: Pre Clone
 run: |
 chmod +x ./wrt_core/pre_clone_action.sh
 ./wrt_core/pre_clone_action.sh ${{ env.TARGET_MODEL }}
 
-【关键修复】替换Xray源码地址为ghproxy加速，解决拉取失败Error255
-
 ◦ name: Replace Xray-core Git Source Mirror
 run: |
-
-批量替换所有xray-core包的GitHub地址
-
 find ./ -path "*package/xray-core/Makefile" -type f -exec sed -i 's|https://github.com/XTLS/Xray-core.git|https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core.git|g' {} ; || true
-
-构建前清空旧编译缓存，stamp残留是install报错主要诱因
 
 ◦ name: Clean Old Build Cache Before Compile
 run: |
 rm -rf ./action_build/build_dir ./action_build/dl ./action_build/tmp ./action_build/staging_dir || true
-
-移除staging_dir缓存，避免旧包污染导致install 255，仅保留ccache
 
 ◦ name: Cache Dependencies
 uses: actions/cache@v6.1.0
@@ -172,8 +143,6 @@ du -sh ./action_build/staging_dir 2>/dev/null || true
 du -sh ./firmware 2>/dev/null || true
 echo "=================================================="
 
-【关键修复】编译脚本传入V=sc输出完整日志，定位xray真实报错
-
 ◦ name: Build Firmware(编译固件)
 run: export BUILD_VERBOSE="V=sc" && ./build.sh ${{ env.TARGET_MODEL }}
 
@@ -213,8 +182,6 @@ du -sh ./action_build/.ccache 2>/dev/null || true
 du -sh ./firmware 2>/dev/null || true
 echo "Firmware file count: $(ls -1 ./firmware 2>/dev/null | wc -l)"
 echo "===================================================="
-
-N1打包逻辑保留，当前IPQ60xx不生效
 
 ◦ name: Package OpenWrt Firmware(打包固件)
 if: false
