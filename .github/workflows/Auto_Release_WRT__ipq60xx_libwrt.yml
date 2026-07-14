@@ -81,7 +81,7 @@ jobs:
           for script in $(find . -name "*.sh"); do
             chmod +x "$script"
           done
-          ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
+          ./wrt_core/pre_clone_action.sh $jdcloud_ipq60xx_libwrt
 
       # 【关键修复】替换Xray源码地址为ghproxy加速，解决拉取失败Error255
       - name: Replace Xray-core Git Source Mirror
