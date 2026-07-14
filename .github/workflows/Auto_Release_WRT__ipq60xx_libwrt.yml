@@ -4,8 +4,8 @@ run-name: Release - ${{ inputs.model }}
 on:
   schedule:
     # 每 3 天编译一次（UTC 时间，北京时间 = UTC+8）
-    # UTC 20:00 = 北京时间 04:00
-    - cron: '0 20 */3 * *'
+    # UTC 05:07 = 北京时间 04:00
+    - cron: 08 05 * * *
   
   workflow_dispatch:
     inputs:
