@@ -1,5 +1,5 @@
 #CI项目
-name: Release WRT
+name: Release WRT-jdcloud_ipq60xx_immwrt
 run-name: Release - ${{ inputs.model }}
 on:
   schedule:
