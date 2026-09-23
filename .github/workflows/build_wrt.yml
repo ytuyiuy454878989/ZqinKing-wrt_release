@@ -119,6 +119,12 @@ jobs:
           #更新feeds，让编译系统识别新增依赖包
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+
+          # ----------【关键修复：kmod‑iptables 与 kmod‑nf‑ipt 文件冲突】----------
+          sed -i 's/^CONFIG_PACKAGE_kmod-iptables=y/# CONFIG_PACKAGE_kmod-iptables is not set/' .config
+          # 打印修改结果，日志可核查
+          echo "==== Check kmod-iptables config ===="
+          grep -E "CONFIG_PACKAGE_kmod-iptables|CONFIG_PACKAGE_kmod-nf-ipt" .config
           cd -
       #====================【新增修复步骤 END】====================
       # 【关键修复】替换Xray源码地址为ghproxy加速，解决拉取失败Error255
