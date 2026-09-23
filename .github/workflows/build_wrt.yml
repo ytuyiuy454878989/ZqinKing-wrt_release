@@ -104,29 +104,24 @@ jobs:
             chmod +x "$script"
           done
           ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
-      #====================【新增修复步骤 START】====================
-      - name: Fix luci-app-mosdns dependency(修复mosdns geo2txt依赖)
+      #====================【方案B：feeds追加geo2txt源，修复mosdns依赖 START】====================
+      - name: Add geo2txt feed source & Fix kmod-iptables conflict
         run: |
           cd ./action_build
-          # 删除原有旧mosdns、v2ray-geodata，避免冲突
-          rm -rf package/luci-app-mosdns
-          rm -rf feeds/packages/net/v2ray-geodata
-          rm -rf package/mosdns
-          # 拉取sbwml v5完整版mosdns套件（自带geo2txt,v2dat）
-          git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
-          #拉取geodata规则库
-          git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
-          #更新feeds，让编译系统识别新增依赖包
+          # 追加 geo2txt 源码源到 feeds.conf.default
+          echo 'src-git geo2txt https://github.com/sbwml/geo2txt.git' >> feeds.conf.default
+          # 更新feeds并安装包索引，加载geo2txt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-
-          # ----------【关键修复：kmod‑iptables 与 kmod‑nf‑ipt 文件冲突】----------
+          # 【内核模块冲突修复】取消 kmod-iptables，避免与kmod-nf-ipt的ko文件冲突
           sed -i 's/^CONFIG_PACKAGE_kmod-iptables=y/# CONFIG_PACKAGE_kmod-iptables is not set/' .config
-          # 打印修改结果，日志可核查
-          echo "==== Check kmod-iptables config ===="
+          # 输出日志校验配置
+          echo "==== feeds.conf.default 新增源 ===="
+          tail feeds.conf.default
+          echo "==== 检查iptables模块配置 ===="
           grep -E "CONFIG_PACKAGE_kmod-iptables|CONFIG_PACKAGE_kmod-nf-ipt" .config
           cd -
-      #====================【新增修复步骤 END】====================
+      #====================【END】====================
       # 【关键修复】替换Xray源码地址为ghproxy加速，解决拉取失败Error255
       - name: Replace Xray-core Git Source Mirror
         run: |
