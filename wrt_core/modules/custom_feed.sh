@@ -195,14 +195,16 @@ install_custom_feed() {
         luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest netdata luci-app-netdata \
         lucky luci-app-lucky luci-app-openclash luci-app-homeproxy luci-app-amlogic \
         oaf open-app-filter luci-app-oaf easytier luci-app-easytier \
-        msd_lite luci-app-msd_lite cups luci-app-cupsd  openlist2 luci-app-openlist2 luci-app-xunlei
+        msd_lite luci-app-msd_lite cups luci-app-cupsd  openlist2 luci-app-openlist2 luci-app-xunlei\
+        luci-app-tailscale-community luci-app-zerotier
     )
     local required_feed_dirs=(
         cups tcping v2ray-geodata luci-lib-taskd luci-app-openclash
         luci-app-quickstart luci-app-store luci-app-homeproxy luci-app-mosdns geo2txt
         luci-app-passwall nikki luci-app-nikki mihomo-meta
         open-app-filter luci-app-oaf lucky luci-app-lucky luci-app-easytier
-        luci-app-emmc-health luci-app-airoha-npu  openlist2 luci-app-openlist2 luci-app-xunlei
+        luci-app-emmc-health luci-app-airoha-npu  openlist2 luci-app-openlist2 luci-app-xunlei  
+        luci-app-tailscale-community luci-app-zerotier
     )
     local custom_feed_sources=()
     local missing_feed_dirs=()
