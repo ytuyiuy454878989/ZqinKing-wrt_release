@@ -141,6 +141,18 @@ jobs:
           du -sh ./firmware 2>/dev/null || true
           echo "=================================================="
 
+      # ========== 修复步骤：关闭Python3 PGO优化，解决 _ctypes.o / profile-opt 报错 ==========
+      - name: Patch python3 remove --enable-optimizations
+        run: |
+          cd ./action_build
+          if [ -f feeds/packages/lang/python/python3/Makefile ]; then
+            sed -i '/--enable-optimizations/d' feeds/packages/lang/python/python3/Makefile
+            grep -n "enable-optimizations" feeds/packages/lang/python/python3/Makefile || echo "✅ --enable-optimizations 已成功移除"
+          else
+            echo "⚠️ 未找到 python3 Makefile，路径可能变动，跳过本次补丁"
+          fi
+      # =====================================================================================
+
       - name: Build Firmware
         env:
           ADD_CONFIG_FRAGMENTS: ${{ inputs.add_fragments }}
