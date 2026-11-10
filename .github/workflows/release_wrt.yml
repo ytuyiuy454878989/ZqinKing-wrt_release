@@ -123,7 +123,7 @@ jobs:
           echo "Uptime: $(uptime -p)"
           echo "=================================================="
           echo "[CPU]"
-          lscpu | grep -E "Model name|Architecture|CPU\\(s\\)|Thread\\(s\\) per core|Core\\(s\\) per socket|CPU max MHz"
+          lscpu | grep -E "Model name|Architecture|CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|CPU max MHz"
           echo "=================================================="
           echo "[Memory]"
           free -h
@@ -141,17 +141,38 @@ jobs:
           du -sh ./firmware 2>/dev/null || true
           echo "=================================================="
 
-      # ========== 修复步骤：关闭Python3 PGO优化，解决 _ctypes.o / profile-opt 报错 ==========
-      - name: Patch python3 remove --enable-optimizations
+      # ========== 修复：关闭 Python3 PGO (profile-opt)，根治 ffi.h 找不到报错 ==========
+      - name: Patch python3 disable profile-opt (fix ffi.h missing)
         run: |
           cd ./action_build
-          if [ -f feeds/packages/lang/python/python3/Makefile ]; then
-            sed -i '/--enable-optimizations/d' feeds/packages/lang/python/python3/Makefile
-            grep -n "enable-optimizations" feeds/packages/lang/python/python3/Makefile || echo "✅ --enable-optimizations 已成功移除"
+          PY_MAKEFILE="feeds/packages/lang/python/python3/Makefile"
+          if [ -f "$PY_MAKEFILE" ]; then
+            # 替换开启PGO为关闭；不存在则追加
+            if grep -q "^PYTHON3_ENABLE_PROFILE_OPT:=1" "$PY_MAKEFILE"; then
+              sed -i 's/^PYTHON3_ENABLE_PROFILE_OPT:=1/PYTHON3_ENABLE_PROFILE_OPT:=0/' "$PY_MAKEFILE"
+            elif ! grep -q "^PYTHON3_ENABLE_PROFILE_OPT:=0" "$PY_MAKEFILE"; then
+              echo 'PYTHON3_ENABLE_PROFILE_OPT:=0' >> "$PY_MAKEFILE"
+            fi
+            echo "✅ python3 PGO profile-opt 已关闭"
+            grep "PYTHON3_ENABLE_PROFILE_OPT" "$PY_MAKEFILE"
           else
-            echo "⚠️ 未找到 python3 Makefile，路径可能变动，跳过本次补丁"
+            echo "⚠️ python3 Makefile 不存在，跳过补丁"
           fi
-      # =====================================================================================
+      # =================================================================================
+
+      # ========== 兜底检测：如果缓存残留 staging_dir 没有 ffi.h，清空 staging_dir ==========
+      - name: Check ffi.h & clean broken staging
+        run: |
+          cd ./action_build
+          # 遍历查找 target 下的 ffi.h
+          FFI_H=$(find staging_dir/target-*/usr/include -name "ffi.h" 2>/dev/null | head -n1)
+          if [ -z "$FFI_H" ]; then
+            echo "⚠️ staging_dir 内未找到 ffi.h，缓存损坏，清空 staging_dir"
+            rm -rf staging_dir
+          else
+            echo "✅ ffi.h 存在: $FFI_H"
+          fi
+      # =================================================================================
 
       - name: Build Firmware
         env:
@@ -184,7 +205,7 @@ jobs:
           echo "Uptime: $(uptime -p)"
           echo "===================================================="
           echo "[CPU]"
-          lscpu | grep -E "Model name|Architecture|CPU\\(s\\)|Thread\\(s\\) per core|Core\\(s\\) per socket|CPU max MHz"
+          lscpu | grep -E "Model name|Architecture|CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|CPU max MHz"
           echo "===================================================="
           echo "[Memory]"
           free -h
