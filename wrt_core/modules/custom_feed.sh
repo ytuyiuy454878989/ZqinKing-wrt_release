@@ -202,8 +202,7 @@ install_custom_feed() {
         luci-app-quickstart luci-app-store luci-app-homeproxy luci-app-mosdns geo2txt
         luci-app-passwall nikki luci-app-nikki mihomo-meta
         open-app-filter luci-app-oaf lucky luci-app-lucky luci-app-easytier
-        luci-app-emmc-health luci-app-airoha-npu  openlist2 luci-app-openlist2 luci-app-xunlei   luci-app-ghboost
-        
+        luci-app-emmc-health luci-app-airoha-npu  openlist2 luci-app-openlist2 luci-app-xunlei           
     )
     local custom_feed_sources=()
     local missing_feed_dirs=()
