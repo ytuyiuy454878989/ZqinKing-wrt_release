@@ -2,6 +2,10 @@ name: 编译固件Release WRT
 run-name: Release - ${{ inputs.model }}
 
 on:
+  schedule:
+    # 每 2 天编译一次（UTC 时间，北京时间 = UTC+8）
+    # UTC 20:00 = 北京时间 04:00
+    - cron: '0 20 */2 * *'
   workflow_dispatch:
     inputs:
       model:
