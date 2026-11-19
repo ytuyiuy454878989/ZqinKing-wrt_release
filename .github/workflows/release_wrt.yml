@@ -1,4 +1,4 @@
-name: Release WRT
+name: 编译固件Release WRT
 run-name: Release - ${{ inputs.model }}
 
 on:
